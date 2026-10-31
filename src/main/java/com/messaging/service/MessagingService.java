@@ -26,7 +26,17 @@ public class MessagingService {
             String messageId,
             String payload) {
 
+
+
         // 1. Validate sender
+        if (senderId == null || senderId.isBlank()) {
+            return new SendResult(
+                    false,
+                    MessageErrorCode.SENDER_NOT_REGISTERED
+            );
+        }
+
+        // 2. Validate sender is online
         if (!clientRegistry.isRegistered(senderId)) {
             return new SendResult(
                     false,
@@ -34,7 +44,7 @@ public class MessagingService {
             );
         }
 
-        // 2. Validate recipient
+        // 3. Validate recipient ID
         if (recipientId == null || recipientId.isBlank()) {
             return new SendResult(
                     false,
@@ -42,14 +52,15 @@ public class MessagingService {
             );
         }
 
-        if (clientRegistry.getClient(recipientId) == null) {
+        // 4. Check recipient exists (online OR offline)
+        if (!clientRegistry.exists(recipientId)) {
             return new SendResult(
                     false,
                     MessageErrorCode.INVALID_RECIPIENT
             );
         }
 
-        // 3. Validate message details
+        // 5. Validate message details
         if (messageId == null || messageId.isBlank()
                 || payload == null || payload.isBlank()) {
             return new SendResult(
@@ -58,7 +69,7 @@ public class MessagingService {
             );
         }
 
-        // 4. Create message
+        // 6. Create message
         Message message = new Message(
                 messageId,
                 senderId,
@@ -66,7 +77,7 @@ public class MessagingService {
                 payload
         );
 
-        // 5. Store in recipient's mailbox
+        // 7. Store message in recipient's mailbox
         boolean stored = mailboxService.storeMessage(message);
 
         if (!stored) {
@@ -75,7 +86,9 @@ public class MessagingService {
                     MessageErrorCode.MAILBOX_FULL
             );
         }
-
+        // 8. Message accepted by server
         return new SendResult(true, null);
     }
+
+
 }
