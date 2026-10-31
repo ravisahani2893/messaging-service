@@ -4,12 +4,13 @@ import com.messaging.config.MessagingProperties;
 import com.messaging.model.Message;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class MailboxService {
 
-    private final ConcurrentMap<String, BlockingQueue<Message>> mailboxes =
+    private final ConcurrentMap<String, Mailbox> mailboxes =
             new ConcurrentHashMap<>();
 
     private final MessagingProperties properties;
@@ -20,33 +21,31 @@ public class MailboxService {
 
     public boolean storeMessage(Message message) {
 
-        BlockingQueue<Message> mailbox =mailboxes
-                .computeIfAbsent(
-                        message.recipientId(),
-                        id -> new ArrayBlockingQueue<>(
-                                properties.getMailboxCapacity()
-                        )
-                );
-        return mailbox.offer(message);
+        Mailbox mailbox = mailboxes.computeIfAbsent(
+                message.recipientId(),
+                id -> new Mailbox(properties.getMailboxCapacity())
+        );
+
+        return mailbox.storeMessage(message);
     }
 
     public Message getMessage(String recipientId) {
-        BlockingQueue<Message> mailbox =mailboxes.get(recipientId);
-        if (mailbox != null) {
-            return mailbox.peek();
+        Mailbox mailbox = mailboxes.get(recipientId);
+
+        if (mailbox == null) {
+            return null;
         }
-        return null;
+
+        return mailbox.getNextMessage();
     }
 
     public boolean acknowledgeMessage(String recipientId, String messageId) {
-        BlockingQueue<Message> mailbox = mailboxes.get(recipientId);
+        Mailbox mailbox = mailboxes.get(recipientId);
 
         if (mailbox == null) {
             return false;
         }
 
-        return mailbox.removeIf(
-                message -> message.messageId().equals(messageId)
-        );
+        return mailbox.acknowledgeMessage(messageId);
     }
 }
