@@ -11,6 +11,7 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
 @Component
 public class TcpMessagingServer implements SmartLifecycle {
 
@@ -22,8 +23,11 @@ public class TcpMessagingServer implements SmartLifecycle {
 
     private volatile boolean running = false;
 
-    public TcpMessagingServer(MessagingProperties properties) {
+    private final ClientRegistry clientRegistry;
+
+    public TcpMessagingServer(MessagingProperties properties, ClientRegistry clientRegistry) {
         this.properties = properties;
+        this.clientRegistry = clientRegistry;
     }
 
     @Override
@@ -48,7 +52,6 @@ public class TcpMessagingServer implements SmartLifecycle {
                     "tcp-accept-thread"
             );
 
-//            acceptThread.setDaemon(true);
             acceptThread.start();
 
         } catch (IOException e) {
@@ -66,7 +69,7 @@ public class TcpMessagingServer implements SmartLifecycle {
                 Socket clientSocket = serverSocket.accept();
 
                 clientExecutor.submit(
-                        new ClientConnectionHandler(clientSocket)
+                        new ClientConnectionHandler(clientSocket,clientRegistry)
                 );
 
             } catch (IOException e) {
