@@ -29,4 +29,24 @@ public class MailboxService {
                 );
         return mailbox.offer(message);
     }
+
+    public Message getMessage(String recipientId) {
+        BlockingQueue<Message> mailbox =mailboxes.get(recipientId);
+        if (mailbox != null) {
+            return mailbox.peek();
+        }
+        return null;
+    }
+
+    public boolean acknowledgeMessage(String recipientId, String messageId) {
+        BlockingQueue<Message> mailbox = mailboxes.get(recipientId);
+
+        if (mailbox == null) {
+            return false;
+        }
+
+        return mailbox.removeIf(
+                message -> message.messageId().equals(messageId)
+        );
+    }
 }

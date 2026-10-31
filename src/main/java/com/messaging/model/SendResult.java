@@ -1,4 +1,6 @@
 package com.messaging.model;
 
-public class SendResult {
-}
+public record SendResult(
+        boolean accepted,
+        String errorCode
+) {}
