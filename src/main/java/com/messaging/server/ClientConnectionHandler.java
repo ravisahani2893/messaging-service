@@ -13,10 +13,13 @@ public class ClientConnectionHandler implements Runnable {
     private final Socket socket;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ClientRegistry clientRegistry;
+
     private ClientSession clientSession;
 
-
-    public ClientConnectionHandler(Socket socket, ClientRegistry clientRegistry) {
+    public ClientConnectionHandler(
+            Socket socket,
+            ClientRegistry clientRegistry
+    ) {
         this.socket = socket;
         this.clientRegistry = clientRegistry;
     }
@@ -33,7 +36,8 @@ public class ClientConnectionHandler implements Runnable {
                 );
                 BufferedWriter writer = new BufferedWriter(
                         new OutputStreamWriter(
-                        socket.getOutputStream(), StandardCharsets.UTF_8
+                                socket.getOutputStream(),
+                                StandardCharsets.UTF_8
                         )
                 )
         ) {
@@ -44,26 +48,27 @@ public class ClientConnectionHandler implements Runnable {
 
                 try {
                     ProtocolMessage message =
-                            objectMapper.readValue(request, ProtocolMessage.class);
-
-                    String clientId = message.clientId();
-                    String type = message.type();
+                            objectMapper.readValue(
+                                    request,
+                                    ProtocolMessage.class
+                            );
 
                     System.out.println("Message type: " + message.type());
                     System.out.println("Client ID: " + message.clientId());
-
 
                     if ("REGISTER".equals(message.type())) {
 
                         handleRegistration(message, writer);
 
-                    }else {
+                    } else {
 
                         sendResponse(
                                 writer,
                                 new ProtocolMessage(
                                         "ERROR",
-                                        null,
+                                        clientSession == null
+                                                ? null
+                                                : clientSession.getClientId(),
                                         null,
                                         null,
                                         "NOT_REGISTERED_OR_UNSUPPORTED_OPERATION"
@@ -72,7 +77,19 @@ public class ClientConnectionHandler implements Runnable {
                     }
 
                 } catch (Exception e) {
+
                     System.out.println("Invalid JSON: " + request);
+
+                    sendResponse(
+                            writer,
+                            new ProtocolMessage(
+                                    "ERROR",
+                                    null,
+                                    null,
+                                    null,
+                                    "INVALID_JSON"
+                            )
+                    );
                 }
             }
 
@@ -85,9 +102,11 @@ public class ClientConnectionHandler implements Runnable {
         } finally {
 
             if (clientSession != null) {
-                clientRegistry.unregister(clientSession);
+
+                clientRegistry.unregister(clientSession, socket);
+
                 System.out.println(
-                        clientSession.clientId() + " unregistered"
+                        clientSession.getClientId() + " disconnected"
                 );
             }
 
@@ -98,10 +117,15 @@ public class ClientConnectionHandler implements Runnable {
         }
     }
 
-    private void handleRegistration(ProtocolMessage message, BufferedWriter writer) throws IOException {
+    private void handleRegistration(
+            ProtocolMessage message,
+            BufferedWriter writer
+    ) throws IOException {
 
         String clientId = message.clientId();
-        if(clientId == null || clientId.isBlank()) {
+
+        // Validate client ID
+        if (clientId == null || clientId.isBlank()) {
 
             sendResponse(
                     writer,
@@ -115,17 +139,16 @@ public class ClientConnectionHandler implements Runnable {
             );
 
             return;
-            
-
         }
 
+        // Prevent registering twice on the same connection
         if (clientSession != null) {
 
             sendResponse(
                     writer,
                     new ProtocolMessage(
                             "ERROR",
-                            clientSession.clientId(),
+                            clientSession.getClientId(),
                             null,
                             null,
                             "ALREADY_REGISTERED"
@@ -135,32 +158,12 @@ public class ClientConnectionHandler implements Runnable {
             return;
         }
 
-        ClientSession newSession =
-                new ClientSession(clientId, socket);
+        // Register a new client or reconnect an offline client
+        ClientSession connectedSession =
+                clientRegistry.connect(clientId, socket);
 
-        boolean registered =
-                clientRegistry.register(newSession);
-
-        if (registered) {
-
-            clientSession = newSession;
-
-            System.out.println(
-                    "Client registered: " + clientId
-            );
-
-            sendResponse(
-                    writer,
-                    new ProtocolMessage(
-                            "REGISTERED",
-                            clientId,
-                            null,
-                            null,
-                            "Registration successful"
-                    )
-            );
-
-        }else {
+        // Null means the client is already online
+        if (connectedSession == null) {
 
             sendResponse(
                     writer,
@@ -172,12 +175,32 @@ public class ClientConnectionHandler implements Runnable {
                             "DUPLICATE_CLIENT"
                     )
             );
+
+            return;
         }
 
+        // Retain the session for cleanup when this handler disconnects
+        this.clientSession = connectedSession;
 
+        sendResponse(
+                writer,
+                new ProtocolMessage(
+                        "REGISTERED",
+                        clientId,
+                        null,
+                        null,
+                        "Registration successful"
+                )
+        );
+
+        System.out.println("Client connected: " + clientId);
     }
 
-    private void sendResponse(BufferedWriter writer, ProtocolMessage response) throws IOException {
+    private void sendResponse(
+            BufferedWriter writer,
+            ProtocolMessage response
+    ) throws IOException {
+
         String json = objectMapper.writeValueAsString(response);
 
         writer.write(json);

@@ -1,6 +1,8 @@
 package com.messaging.service;
 
+import com.messaging.constant.MessageErrorCode;
 import com.messaging.model.Message;
+import com.messaging.model.SendResult;
 import com.messaging.server.ClientRegistry;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +20,7 @@ public class MessagingService {
         this.mailboxService = mailboxService;
     }
 
-    public boolean sendMessage(
+    public SendResult sendMessage(
             String senderId,
             String recipientId,
             String messageId,
@@ -26,18 +28,34 @@ public class MessagingService {
 
         // 1. Validate sender
         if (!clientRegistry.isRegistered(senderId)) {
-            return false;
+            return new SendResult(
+                    false,
+                    MessageErrorCode.SENDER_NOT_REGISTERED
+            );
         }
 
         // 2. Validate recipient
         if (recipientId == null || recipientId.isBlank()) {
-            return false;
+            return new SendResult(
+                    false,
+                    MessageErrorCode.INVALID_RECIPIENT
+            );
+        }
+
+        if (clientRegistry.getClient(recipientId) == null) {
+            return new SendResult(
+                    false,
+                    MessageErrorCode.INVALID_RECIPIENT
+            );
         }
 
         // 3. Validate message details
         if (messageId == null || messageId.isBlank()
                 || payload == null || payload.isBlank()) {
-            return false;
+            return new SendResult(
+                    false,
+                    MessageErrorCode.INVALID_MESSAGE
+            );
         }
 
         // 4. Create message
@@ -49,6 +67,15 @@ public class MessagingService {
         );
 
         // 5. Store in recipient's mailbox
-        return mailboxService.storeMessage(message);
+        boolean stored = mailboxService.storeMessage(message);
+
+        if (!stored) {
+            return new SendResult(
+                    false,
+                    MessageErrorCode.MAILBOX_FULL
+            );
+        }
+
+        return new SendResult(true, null);
     }
 }
