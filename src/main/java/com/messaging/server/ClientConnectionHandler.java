@@ -46,13 +46,29 @@ public class ClientConnectionHandler implements Runnable {
                     ProtocolMessage message =
                             objectMapper.readValue(request, ProtocolMessage.class);
 
+                    String clientId = message.clientId();
+                    String type = message.type();
+
                     System.out.println("Message type: " + message.type());
                     System.out.println("Client ID: " + message.clientId());
+
 
                     if ("REGISTER".equals(message.type())) {
 
                         handleRegistration(message, writer);
 
+                    }else {
+
+                        sendResponse(
+                                writer,
+                                new ProtocolMessage(
+                                        "ERROR",
+                                        null,
+                                        null,
+                                        null,
+                                        "NOT_REGISTERED_OR_UNSUPPORTED_OPERATION"
+                                )
+                        );
                     }
 
                 } catch (Exception e) {

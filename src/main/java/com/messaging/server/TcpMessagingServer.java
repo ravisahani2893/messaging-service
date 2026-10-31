@@ -25,6 +25,8 @@ public class TcpMessagingServer implements SmartLifecycle {
 
     private final ClientRegistry clientRegistry;
 
+
+
     public TcpMessagingServer(MessagingProperties properties, ClientRegistry clientRegistry) {
         this.properties = properties;
         this.clientRegistry = clientRegistry;
