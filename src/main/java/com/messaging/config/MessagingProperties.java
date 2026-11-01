@@ -9,7 +9,38 @@ public class MessagingProperties {
     private int maxConnections;
     private int mailboxCapacity;
     private int maxMessageSize;
-    private int readTimeout;
+    // Max distinct client IDs ever registered. Clients are never removed, so this bounds the registry.
+    private int maxClients = 1000;
+
+    public int getMaxClients() {
+        return maxClients;
+    }
+
+    public void setMaxClients(int maxClients) {
+        this.maxClients = maxClients;
+    }
+
+    // A connection that sends nothing for this long is closed (default 5 minutes)
+    private int idleTimeoutMillis = 300_000;
+
+    public int getIdleTimeoutMillis() {
+        return idleTimeoutMillis;
+    }
+
+    public void setIdleTimeoutMillis(int idleTimeoutMillis) {
+        this.idleTimeoutMillis = idleTimeoutMillis;
+    }
+
+    // Max lines queued for one client's writer thread before it is dropped as too slow
+    private int outboundQueueCapacity = 100;
+
+    public int getOutboundQueueCapacity() {
+        return outboundQueueCapacity;
+    }
+
+    public void setOutboundQueueCapacity(int outboundQueueCapacity) {
+        this.outboundQueueCapacity = outboundQueueCapacity;
+    }
 
     public int getPort() {
         return port;
@@ -41,13 +72,5 @@ public class MessagingProperties {
 
     public void setMaxMessageSize(int maxMessageSize) {
         this.maxMessageSize = maxMessageSize;
-    }
-
-    public int getReadTimeout() {
-        return readTimeout;
-    }
-
-    public void setReadTimeout(int readTimeout) {
-        this.readTimeout = readTimeout;
     }
 }
