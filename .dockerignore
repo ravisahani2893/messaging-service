@@ -1,0 +1,13 @@
+# Keep the build context small and the build reproducible:
+# only the files the Dockerfile needs are sent to Docker.
+.git
+.gradle
+.idea
+.vscode
+build
+bin
+out
+*.md
+!README.md
+Dockerfile
+.dockerignore
