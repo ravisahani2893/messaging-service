@@ -1,51 +1,78 @@
 package com.messaging.service;
 
+import com.messaging.constant.StoreResult;
 import com.messaging.model.Message;
 import com.messaging.model.MessageKey;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+
 
 public class Mailbox {
 
-    private final BlockingQueue<Message> messages;
+    // All state below is guarded by this mailbox's monitor. A plain deque is
+    // enough: a BlockingQueue's own locking would be redundant, and the lock
+    // is per recipient so unrelated mailboxes never contend.
+    private final Deque<Message> messages = new ArrayDeque<>();
+    private final int capacity;
 
     private final HashMap<MessageKey, Message> messagesById =
             new HashMap<>();
 
+    // true while the head message has been sent and is waiting for its ACK
+    private boolean inFlight = false;
+
     public Mailbox(int capacity) {
-        this.messages = new ArrayBlockingQueue<>(capacity);
+        this.capacity = capacity;
     }
 
-    public synchronized boolean storeMessage(Message message) {
+    public synchronized StoreResult storeMessage(Message message) {
 
         MessageKey key = new MessageKey(
                 message.senderId(),
                 message.messageId()
         );
 
-        // 1. Check for duplicate message
         if (messagesById.containsKey(key)) {
-            return false;
+            return StoreResult.DUPLICATE;
         }
 
-        // 2. Try adding the message to the queue
-        boolean added = messages.offer(message);
-
-        // 3. Check whether the mailbox is full
-        if (!added) {
-            return false;
+        if (messages.size() >= capacity) {
+            return StoreResult.FULL;
         }
 
-        // 4. Store the message in our duplicate-check index
+        messages.addLast(message);
+
         messagesById.put(key, message);
 
-        return true;
+        return StoreResult.STORED;
     }
 
-    public synchronized Message getNextMessage() {
-        return messages.peek();
+    /**
+     * Returns the head message only if it has not already been sent on the
+     * current connection, and marks it in flight. Returns null otherwise, so
+     * the same unacked message is not delivered again until the client
+     * reconnects.
+     */
+    public synchronized Message claimNextForDelivery() {
+
+        if (inFlight) {
+            return null;
+        }
+
+        Message head = messages.peek();
+
+        if (head != null) {
+            inFlight = true;
+        }
+
+        return head;
+    }
+
+    /** Called when the recipient connects or disconnects: the head must be sent again. */
+    public synchronized void resetInFlight() {
+        inFlight = false;
     }
 
     public synchronized boolean acknowledgeMessage(String messageId) {
@@ -63,7 +90,8 @@ public class Mailbox {
         }
 
         // Remove the acknowledged message
-        messages.poll();
+        messages.pollFirst();
+        inFlight = false;
 
         // Remove its duplicate-check entry
         MessageKey key = new MessageKey(
@@ -75,4 +103,6 @@ public class Mailbox {
 
         return true;
     }
+
+
 }

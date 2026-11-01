@@ -1,6 +1,7 @@
 package com.messaging.service;
 
 import com.messaging.config.MessagingProperties;
+import com.messaging.constant.StoreResult;
 import com.messaging.model.Message;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +20,7 @@ public class MailboxService {
         this.properties = properties;
     }
 
-    public boolean storeMessage(Message message) {
+    public StoreResult storeMessage(Message message) {
 
         Mailbox mailbox = mailboxes.computeIfAbsent(
                 message.recipientId(),
@@ -29,14 +30,22 @@ public class MailboxService {
         return mailbox.storeMessage(message);
     }
 
-    public Message getMessage(String recipientId) {
+    public Message claimNextMessage(String recipientId) {
         Mailbox mailbox = mailboxes.get(recipientId);
 
         if (mailbox == null) {
             return null;
         }
 
-        return mailbox.getNextMessage();
+        return mailbox.claimNextForDelivery();
+    }
+
+    public void resetInFlight(String recipientId) {
+        Mailbox mailbox = mailboxes.get(recipientId);
+
+        if (mailbox != null) {
+            mailbox.resetInFlight();
+        }
     }
 
     public boolean acknowledgeMessage(String recipientId, String messageId) {
