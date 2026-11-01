@@ -161,7 +161,7 @@ public class ClientConnectionHandler implements Runnable {
 
         String clientId = request.clientId();
 
-        if (MessagingService.isValidId(clientId)) {
+        if (!MessagingService.isValidId(clientId)) {
             replyError(MessageErrorCode.INVALID_CLIENT_ID);
             return;
         }

@@ -70,7 +70,7 @@ public class MessagingService {
         }
 
         // 5. Validate message details
-        if (isValidId(messageId)
+        if (!isValidId(messageId)
                 || payload == null || payload.isBlank()) {
             return new SendResult(
                     false,
@@ -125,7 +125,7 @@ public class MessagingService {
 
     /** IDs: 1-64 chars of letters, digits, '.', '_' or '-'. */
     public static boolean isValidId(String id) {
-        return id == null || !ID_PATTERN.matcher(id).matches();
+        return id != null && ID_PATTERN.matcher(id).matches();
     }
 
     public boolean acknowledgeMessage(String recipientId, String messageId) {
